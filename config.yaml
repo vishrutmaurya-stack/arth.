@@ -1,0 +1,56 @@
+paths:
+  raw: data/raw
+  loaded: data/loaded
+  chunks: data/chunks
+  embeddings: data/embeddings
+  traces: data/traces
+
+sources:
+  - id: hdfc-amc
+    type: amc
+    title: HDFC Mutual Fund
+    url: https://groww.in/mutual-funds/amc/hdfc-mutual-funds
+  - id: hdfc-large-cap
+    type: scheme
+    title: HDFC Large Cap Fund Direct Growth
+    url: https://groww.in/mutual-funds/hdfc-large-cap-fund-direct-growth
+  - id: hdfc-flexi-cap
+    type: scheme
+    title: HDFC Flexi Cap Direct Plan Growth
+    url: https://groww.in/mutual-funds/hdfc-equity-fund-direct-growth
+  - id: hdfc-elss
+    type: scheme
+    title: HDFC ELSS Tax Saver Fund Direct Plan Growth
+    url: https://groww.in/mutual-funds/hdfc-elss-tax-saver-fund-direct-plan-growth
+  - id: hdfc-mid-cap
+    type: scheme
+    title: HDFC Mid Cap Fund Direct Growth
+    url: https://groww.in/mutual-funds/hdfc-mid-cap-fund-direct-growth
+
+chunking:
+  strategy: section_fact
+  size: 512
+  overlap: 64
+
+embedding_model: sentence-transformers/all-MiniLM-L6-v2
+
+vector_db:
+  persist_dir: chroma
+  collection: groww_hdfc_mf
+  distance: cosine
+
+retrieval:
+  k: 4
+  min_score: 0.55
+
+llm:
+  provider: groq
+  temperature: 0.1
+
+educational_links:
+  - id: sebi-investor
+    url: https://investor.sebi.gov.in/
+    use_for: [advice]
+  - id: amfi
+    url: https://www.amfiindia.com/
+    use_for: [advice, performance]

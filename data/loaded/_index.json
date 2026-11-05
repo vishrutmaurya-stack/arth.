@@ -1,0 +1,41 @@
+{
+  "pages": [
+    {
+      "page_id": "hdfc-amc",
+      "ok": true,
+      "facts": 15,
+      "sections": 3,
+      "char_count": 23038
+    },
+    {
+      "page_id": "hdfc-large-cap",
+      "ok": true,
+      "facts": 31,
+      "sections": 5,
+      "char_count": 17689
+    },
+    {
+      "page_id": "hdfc-flexi-cap",
+      "ok": true,
+      "facts": 31,
+      "sections": 5,
+      "char_count": 19569
+    },
+    {
+      "page_id": "hdfc-elss",
+      "ok": true,
+      "facts": 32,
+      "sections": 5,
+      "char_count": 17882
+    },
+    {
+      "page_id": "hdfc-mid-cap",
+      "ok": true,
+      "facts": 30,
+      "sections": 5,
+      "char_count": 19255
+    }
+  ],
+  "source_count": 5,
+  "failed": false
+}

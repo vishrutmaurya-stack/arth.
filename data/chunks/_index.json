@@ -1,0 +1,40 @@
+{
+  "strategy": "section_fact",
+  "size": 512,
+  "overlap": 64,
+  "source_count": 5,
+  "chunk_count": 152,
+  "failed": false,
+  "pages": [
+    {
+      "page_id": "hdfc-amc",
+      "page_type": "amc",
+      "ok": true,
+      "chunks": 9
+    },
+    {
+      "page_id": "hdfc-large-cap",
+      "page_type": "scheme",
+      "ok": true,
+      "chunks": 36
+    },
+    {
+      "page_id": "hdfc-flexi-cap",
+      "page_type": "scheme",
+      "ok": true,
+      "chunks": 36
+    },
+    {
+      "page_id": "hdfc-elss",
+      "page_type": "scheme",
+      "ok": true,
+      "chunks": 37
+    },
+    {
+      "page_id": "hdfc-mid-cap",
+      "page_type": "scheme",
+      "ok": true,
+      "chunks": 34
+    }
+  ]
+}
