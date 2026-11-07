@@ -8,7 +8,9 @@ but Vercel hosts a separate Next.js frontend that calls these endpoints.
 from __future__ import annotations
 
 import json
+import logging
 import os
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from functools import lru_cache
@@ -20,6 +22,16 @@ from pydantic import BaseModel, Field
 
 from app.ask import ask
 from app.config import Config, load_config
+from app.pipeline.onnx_embedder import get_onnx_embedder
+
+logger = logging.getLogger("arth.api")
+
+# Demo-sized concurrency: one answer at a time on the 0.1 vCPU free instance.
+_ASK_SLOT = threading.BoundedSemaphore(1)
+BUSY_MESSAGE = (
+    "The assistant is answering another question right now. "
+    "Please retry in a few seconds."
+)
 
 
 class AskRequest(BaseModel):
@@ -102,8 +114,14 @@ def _ensure_index(config: Config) -> bool:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    config = _config()
     # Fresh hosts have no chroma/ directory: build it from committed chunks + embeddings.
-    _ensure_index(_config())
+    _ensure_index(config)
+    # Load the model once at startup so the first question does not time out.
+    try:
+        get_onnx_embedder(config.embedding_model)
+    except Exception:
+        logger.exception("ONNX embedder preload failed; /api/ask will retry lazily")
     yield
 
 
@@ -192,10 +210,15 @@ def ask_endpoint(payload: AskRequest) -> AskResponse:
     if not question:
         raise HTTPException(status_code=422, detail="question must not be empty")
 
+    if not _ASK_SLOT.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail=BUSY_MESSAGE)
+
     try:
         result = ask(question, config=_config())
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    finally:
+        _ASK_SLOT.release()
 
     return AskResponse(
         query_id=result.query_id,

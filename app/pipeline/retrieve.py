@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -9,9 +10,11 @@ from typing import Any
 
 from app.config import Config
 from app.pipeline.artifacts import write_json
+from app.pipeline.onnx_embedder import get_onnx_embedder
 
 _EMBEDDER = None
 _EMBEDDER_NAME: str | None = None
+_EMBEDDER_LOCK = threading.Lock()
 _CHROMA_COLLECTION = None
 _CHROMA_PATH: str | None = None
 _CHROMA_NAME: str | None = None
@@ -30,14 +33,14 @@ def allowed_source_urls(config: Config) -> set[str]:
 
 
 def _get_embedder(model_name: str) -> Any:
+    """Return the single ONNX embedder; reload only if the configured model changes."""
     global _EMBEDDER, _EMBEDDER_NAME
-    if _EMBEDDER is None or _EMBEDDER_NAME != model_name:
-        try:
-            from sentence_transformers import SentenceTransformer
-        except ImportError as exc:
-            raise RuntimeError("sentence-transformers is not installed") from exc
-        _EMBEDDER = SentenceTransformer(model_name, device="cpu")
-        _EMBEDDER_NAME = model_name
+    if _EMBEDDER is not None and _EMBEDDER_NAME == model_name:
+        return _EMBEDDER
+    with _EMBEDDER_LOCK:
+        if _EMBEDDER is None or _EMBEDDER_NAME != model_name:
+            _EMBEDDER = get_onnx_embedder(model_name)
+            _EMBEDDER_NAME = model_name
     return _EMBEDDER
 
 

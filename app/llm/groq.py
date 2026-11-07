@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,15 @@ from typing import Any
 from dotenv import dotenv_values
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+
+logger = logging.getLogger(__name__)
+
+# Keep a single ask comfortably below Render's ~60 s request window.
+REQUEST_TIMEOUT_SECONDS = 20.0
+MAX_RETRIES = 1
+UNAVAILABLE_MESSAGE = (
+    "The answer service is temporarily unavailable. Please retry in a few seconds."
+)
 
 _CLIENT = None
 _RESOLVED_MODEL: str | None = None
@@ -40,7 +50,11 @@ def get_groq_client() -> Any:
         if not api_key or not api_key.strip():
             raise RuntimeError("GROQ_API_KEY is not set in .env")
 
-        _CLIENT = Groq(api_key=api_key.strip())
+        _CLIENT = Groq(
+            api_key=api_key.strip(),
+            timeout=REQUEST_TIMEOUT_SECONDS,
+            max_retries=MAX_RETRIES,
+        )
     return _CLIENT
 
 
@@ -62,4 +76,5 @@ def complete(
         content = response.choices[0].message.content or ""
         return content.strip()
     except Exception as exc:
-        raise RuntimeError(f"Groq API call failed (model={model}): {exc}") from exc
+        logger.warning("Groq API call failed (model=%s): %s", model, exc)
+        raise RuntimeError(UNAVAILABLE_MESSAGE) from exc
