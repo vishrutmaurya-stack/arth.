@@ -7,6 +7,16 @@ performance comparisons, PII, and facts that are not in the corpus.
 
 > **Facts-only. No investment advice.**
 
+The project ships two interchangeable frontends over the same Python pipeline:
+
+- a **Next.js app** in `web/` designed for **Vercel**, which talks to the pipeline over
+  HTTP, and
+- the original **Streamlit app** (`app/serve.py`) for local use, LAN access, Streamlit
+  Community Cloud, Render, or Hugging Face Spaces.
+
+The Python RAG pipeline, ingestion, guards, retrieval, generation, citations, and Chroma
+store are shared and unchanged. Nothing about the frontend choice changes the answers.
+
 ---
 
 ## What it does
@@ -21,9 +31,8 @@ question
   → answer + one Groww link + last-updated line
 ```
 
-The UI is a Streamlit app with an Arth AI neon-light shell: an initialization screen
-showing the real indexed sources, then the chat interface. It uses the actual corpus
-stats — **5 sources, 152 chunks**:
+Both UIs show an initialization screen with the real indexed sources, then the chat
+interface. They use the actual corpus stats — **5 sources, 152 chunks**:
 
 | Source | Chunks |
 | --- | ---: |
@@ -37,21 +46,52 @@ Embedding model: `sentence-transformers/all-MiniLM-L6-v2` (384-d, cosine).
 
 ---
 
+## Repository layout
+
+```
+app/
+  serve.py            # Streamlit UI (Arth AI shell)
+  api.py              # FastAPI transport wrapper for the Next.js frontend
+  ask.py              # query orchestration + decisions
+  ingest.py           # pipeline CLI
+  config.py           # config + paths
+  llm/groq.py         # Groq client
+  pipeline/
+    scrape.py load.py chunk.py embed.py store.py
+    retrieve.py generate.py guards.py artifacts.py
+web/                  # Next.js App Router frontend (Vercel)
+  app/ components/ lib/
+data/
+  loaded/ chunks/ embeddings/   # committed corpus artifacts
+  raw/ traces/                  # runtime only (git-ignored)
+chroma/                         # local vector store (rebuilt on first run)
+.streamlit/config.toml          # Streamlit theme
+render.api.yaml                 # Render blueprint for the HTTP API
+render.yaml                     # Render blueprint for the Streamlit app
+scripts/                        # retrieval + guardrail tests
+Doc/                            # PRD, architecture, implementation
+```
+
+---
+
 ## Quick start (Windows, PowerShell)
 
+### 1. Python environment and secrets
+
 ```powershell
-# 1. Create and activate a virtual environment
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-
-# 2. Install dependencies
 python -m pip install -r requirements.txt
 
-# 3. Configure secrets
 Copy-Item .env.example .env
-#    Edit .env and set GROQ_API_KEY (and LLM_MODEL if needed)
+# Edit .env and set GROQ_API_KEY (and LLM_MODEL if needed)
+```
 
-# 4. Run the app
+`.env` is never committed.
+
+### 2A. Run the Streamlit UI
+
+```powershell
 .\run.ps1
 # or:
 .\.venv\Scripts\streamlit.exe run app\serve.py
@@ -59,8 +99,38 @@ Copy-Item .env.example .env
 
 Open <http://localhost:8501>.
 
+### 2B. Run the HTTP API + Next.js frontend
+
+```powershell
+# terminal 1 — Python API on http://localhost:8000
+.\.venv\Scripts\python.exe -m uvicorn app.api:app --host 127.0.0.1 --port 8000
+
+# terminal 2 — Next.js on http://localhost:3000
+cd web
+npm install
+Copy-Item .env.example .env.local
+npm run dev
+```
+
+`web/.env.local` should contain:
+
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+The API exposes:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/health` | Liveness check |
+| `GET` | `/api/meta` | Real corpus stats, sources, embedding + retrieval config |
+| `POST` | `/api/ask` | `{ "question": "..." }` → grounded answer, decision, one citation, timestamp, hits |
+
+Interactive docs: <http://localhost:8000/docs>.
+
 The committed `data/chunks/` and `data/embeddings/` are enough to start: on first run
-the app rebuilds `chroma/` automatically. If it is missing, you can also run:
+the Streamlit app and the API both rebuild `chroma/` automatically. If it is missing, you
+can also run:
 
 ```powershell
 .\.venv\Scripts\python.exe -m app.ingest --phase store
@@ -73,10 +143,15 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env   # then edit it
+
+# Streamlit
 streamlit run app/serve.py
+
+# or HTTP API
+uvicorn app.api:app --host 0.0.0.0 --port 8000
 ```
 
-### Run on your local network (LAN)
+### Run the Streamlit UI on your local network (LAN)
 
 ```powershell
 .\run.ps1 -Lan
@@ -98,19 +173,29 @@ GROQ_API_KEY=gsk_...
 LLM_MODEL=qwen/qwen3.8-27b
 ```
 
-On Streamlit Community Cloud, add the same keys in **App settings → Secrets**:
+Optional variables:
+
+| Variable | Where | Purpose |
+| --- | --- | --- |
+| `HF_TOKEN` | backend | Higher Hugging Face download limits for the embedding model |
+| `ALLOWED_ORIGINS` | backend | Extra browser origins, comma-separated (custom frontend domain) |
+| `ALLOWED_ORIGIN_REGEX` | backend | Defaults to `https://.*\.vercel\.app` for preview deployments |
+| `NEXT_PUBLIC_API_URL` | Vercel / `web/.env.local` | URL of the separately deployed Python API |
+
+On Streamlit Community Cloud, add the secrets in **App settings → Secrets**:
 
 ```toml
 GROQ_API_KEY = "gsk_..."
 LLM_MODEL = "qwen/qwen3.8-27b"
 ```
 
-The app bridges Streamlit secrets into environment variables before the pipeline runs.
+The Streamlit app bridges its secrets into environment variables before the pipeline
+runs. The FastAPI wrapper reads the same `.env` / process environment.
 
 Other files:
 
 - `config.yaml` — sources, chunking, retrieval, LLM settings
-- `.streamlit/config.toml` — light theme palette
+- `.streamlit/config.toml` — Streamlit theme palette
 - `Doc/` — PRD, architecture, implementation notes
 
 ---
@@ -132,7 +217,7 @@ All phases are idempotent and write JSON artifacts under `data/`:
 
 `data/raw/` and `data/traces/` are runtime artifacts and are git-ignored.
 `data/chunks/`, `data/embeddings/`, and `data/loaded/` are committed so the app can
-start without re-scraping.
+start without re-scraping. `chroma/` is rebuilt from those artifacts on first boot.
 
 ### CLI query
 
@@ -151,10 +236,64 @@ start without re-scraping.
 
 ## Deployment
 
-### ✅ Streamlit Community Cloud (recommended)
+### ✅ Vercel frontend + separate Python API (recommended for Vercel)
 
-This app is a Streamlit app, so the official Streamlit host is the simplest option and
-free for public apps.
+Vercel hosts **only** the Next.js UI. The Python RAG service runs on a separate
+long-lived host (Render, Fly.io, a VPS, etc.) because the embedding model and Chroma
+store need a persistent process and disk.
+
+**Step 1 — deploy the Python API**
+
+`render.api.yaml` is included:
+
+1. In Render, choose **New → Blueprint** and connect this repository.
+2. Select `render.api.yaml` if Render asks which blueprint to use.
+3. Set `GROQ_API_KEY` when prompted (`LLM_MODEL` is preset to `qwen/qwen3.8-27b`).
+4. Deploy and copy the public HTTPS URL, e.g. `https://arth-ai-api.onrender.com`.
+5. Confirm `https://<api-host>/api/health` returns `{"status":"ok"}`.
+
+On first boot the API rebuilds `chroma/` from the committed chunks and embeddings; this
+takes a moment and needs enough RAM for the MiniLM model. Free Render instances sleep
+after inactivity, so the first request after a sleep is slow.
+
+**Step 2 — deploy the Next.js frontend**
+
+1. In Vercel, **Add New → Project** and import this repository.
+2. Set **Root Directory** to `web`.
+3. Framework preset: **Next.js**. Build command `npm run build`, output `.next`.
+4. Add an environment variable for **Production and Preview**:
+   ```
+   NEXT_PUBLIC_API_URL=https://<your-api-host>
+   ```
+5. Deploy.
+
+`NEXT_PUBLIC_*` values are baked in at build time: after changing the API URL, redeploy
+the frontend.
+
+**CORS**
+
+The API already allows:
+
+- `http://localhost:3000` and `http://127.0.0.1:3000`, and
+- every `https://*.vercel.app` preview/production URL by default.
+
+For a custom frontend domain, set `ALLOWED_ORIGINS` on the backend to a comma-separated
+list and restart it:
+
+```dotenv
+ALLOWED_ORIGINS=https://arth.example.com,https://www.arth.example.com
+```
+
+**Important**
+
+- Do **not** try to deploy `app/serve.py` (Streamlit) to Vercel. Streamlit needs a
+  long-lived process and a WebSocket per session.
+- The frontend never fabricates an answer: if the API is unreachable it shows an
+  offline banner and a truthful error.
+
+### ✅ Streamlit Community Cloud
+
+The Streamlit UI is still supported:
 
 1. Push this repository to GitHub (see below).
 2. Go to <https://share.streamlit.io> and sign in with GitHub.
@@ -169,7 +308,7 @@ free for public apps.
    ```
 7. Deploy. The first boot rebuilds `chroma/` from the committed chunks and embeddings.
 
-### ✅ Render
+### ✅ Render (Streamlit)
 
 `render.yaml` is included. Create a **New → Blueprint** in Render, connect the repo,
 and set `GROQ_API_KEY` when prompted. The start command binds to `$PORT` and `0.0.0.0`.
@@ -184,17 +323,11 @@ Create a **Streamlit** Space, push this repo to it, add `GROQ_API_KEY` and `LLM_
 as Space secrets, and set the app file to `app/serve.py`. Spaces has a generous free
 RAM allowance, which suits the local embedding model.
 
-### ❌ Vercel
-
-Vercel is **not suitable for this app**. Streamlit needs a long-lived Python process and
-a WebSocket connection per session; Vercel runs stateless serverless/static deployments.
-Hosting here would require rewriting the UI as a separate frontend and the pipeline as
-an HTTP API with external state. Use Streamlit Community Cloud, Render, or HF Spaces
-instead — no Vercel token is needed.
-
 ### Local hosting
 
-Use `.\run.ps1` for localhost or `.\run.ps1 -Lan` to expose it on your LAN.
+Use `.\run.ps1` for the Streamlit app on localhost, or `.\run.ps1 -Lan` to expose it on
+your LAN. For the Vercel-style UI, run uvicorn plus `npm run dev` in `web/` as described
+above.
 
 ---
 
@@ -211,28 +344,18 @@ git push origin main
 Remote: <https://github.com/vishrutmaurya-stack/arth..git>
 
 Authentication uses a GitHub Personal Access Token (classic, `repo` scope) or Git
-Credential Manager. **Never commit `.env`.** If a key is ever exposed, rotate it in the
-Groq console and in your host's secret settings.
+Credential Manager. **Never commit `.env` or `web/.env.local`.** If a key is ever
+exposed, rotate it in the Groq console and in your host's secret settings.
 
 ---
 
-## Project layout
+## Privacy & guardrails
 
-```
-app/
-  serve.py            # Streamlit UI (Arth AI shell)
-  ask.py              # query orchestration + decisions
-  ingest.py           # pipeline CLI
-  config.py           # config + paths
-  llm/groq.py         # Groq client
-  pipeline/
-    scrape.py load.py chunk.py embed.py store.py
-    retrieve.py generate.py guards.py artifacts.py
-data/
-  loaded/ chunks/ embeddings/   # committed corpus artifacts
-  raw/ traces/                  # runtime only (git-ignored)
-chroma/                         # local vector store (rebuilt on first run)
-.streamlit/config.toml          # theme
-scripts/                        # retrieval + guardrail tests
-Doc/                            # PRD, architecture, implementation
-```
+- PII is detected before retrieval. The question is redacted in the transcript and is
+  never echoed back or written to session display.
+- The model only sees retrieved chunks. Citations are selected in code from chunk
+  metadata, so the UI cannot show an invented source.
+- Advice, performance comparisons, and facts outside the five indexed pages are
+  refused with an explicit decision badge.
+- No fake security, uptime, or corpus claims are displayed; stats come from
+  `data/chunks/_index.json` and `/api/meta`.

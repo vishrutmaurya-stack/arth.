@@ -1,0 +1,71 @@
+import type { Config } from "tailwindcss";
+
+const config: Config = {
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        surface: "#fcf8ff",
+        "surface-dim": "#d9d7f4",
+        "surface-bright": "#fcf8ff",
+        "surface-container-lowest": "#ffffff",
+        "surface-container-low": "#f5f2ff",
+        "surface-container": "#efecff",
+        "surface-container-high": "#e8e5ff",
+        "surface-container-highest": "#e2e0fd",
+        "on-surface": "#19192f",
+        "on-surface-variant": "#5b3f44",
+        "on-background": "#19192f",
+        primary: "#b7004f",
+        "primary-container": "#e40a65",
+        "primary-fixed": "#ffd9df",
+        "primary-fixed-dim": "#ffb1c0",
+        "on-primary": "#ffffff",
+        "on-primary-container": "#fffbff",
+        secondary: "#006b54",
+        "secondary-container": "#00f9c7",
+        "secondary-fixed": "#24ffcd",
+        "secondary-fixed-dim": "#00e0b3",
+        "on-secondary": "#ffffff",
+        "on-secondary-container": "#006e57",
+        "tertiary-fixed": "#ffe25a",
+        "tertiary-container": "#c6aa0a",
+        "on-tertiary": "#ffffff",
+        "on-tertiary-container": "#4b3f00",
+        outline: "#8f6f74",
+        "outline-variant": "#e4bdc3",
+        error: "#ba1a1a",
+        "error-container": "#ffdad6",
+        "on-error-container": "#93000a",
+        "neon-pink": "#ff2d78",
+        "neon-cyan": "#00e5ff",
+        "neon-teal": "#05c3b6",
+        "neon-purple": "#7928ca",
+        "inverse-surface": "#2e2e45",
+        "inverse-on-surface": "#f2efff",
+        "inverse-primary": "#ffb1c0",
+      },
+      fontFamily: {
+        headline: ["var(--font-sora)", "Sora", "sans-serif"],
+        display: ["var(--font-sora)", "Sora", "sans-serif"],
+        body: ["var(--font-inter)", "Inter", "sans-serif"],
+        label: ["var(--font-space-grotesk)", "Space Grotesk", "sans-serif"],
+      },
+      boxShadow: {
+        "neon-pink": "0 4px 20px -2px rgba(255, 45, 120, 0.35)",
+        "neon-cyan": "0 4px 18px -2px rgba(0, 229, 191, 0.3)",
+        tech: "0 1px 3px rgba(30, 20, 60, 0.05), 0 8px 24px -4px rgba(60, 30, 110, 0.06)",
+        "tech-sm":
+          "0 1px 2px rgba(30, 20, 60, 0.04), 0 2px 6px -1px rgba(60, 30, 110, 0.04)",
+        card: "0 20px 60px -15px rgba(25, 25, 47, 0.1), 0 0 40px rgba(183, 0, 79, 0.06)",
+        cta: "0 10px 26px -8px rgba(255, 45, 120, 0.6)",
+      },
+      borderRadius: {
+        "4xl": "2rem",
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;
